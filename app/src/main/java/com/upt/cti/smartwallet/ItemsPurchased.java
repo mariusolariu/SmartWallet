@@ -1,12 +1,10 @@
 package com.upt.cti.smartwallet;
 
-import android.content.DialogInterface;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.support.design.widget.FloatingActionButton;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -19,8 +17,6 @@ import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.upt.cti.smartwallet.internet_connection.ConnectionStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +25,7 @@ import model.Payment;
 import ui.PaymentAdapter;
 
 public class ItemsPurchased extends AppCompatActivity {
+    private static final String TAG_MONTH = "current_month";
     private DatabaseReference databaseReference;
     private List<Payment> payments = new ArrayList<>();
     private Button bPrevious, bNext;
@@ -44,7 +41,6 @@ public class ItemsPurchased extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_items_purchased);
-
         tStatus = (TextView) findViewById(R.id.tStatus);
         bPrevious = (Button) findViewById(R.id.bPrevious);
         bNext = (Button) findViewById(R.id.bNext);
@@ -52,17 +48,20 @@ public class ItemsPurchased extends AppCompatActivity {
         listPayments = (ListView) findViewById(R.id.listPayments);
         adapter = new PaymentAdapter(this, R.layout.row_layout, payments);
         listPayments.setAdapter(adapter);
+        databaseReference = AppState.get().getDatabaseReference();
 
-        // setup firebase
-        final FirebaseDatabase database = FirebaseDatabase.getInstance();
-        databaseReference = database.getReference();
-        AppState.get().setDatabaseReference(databaseReference);
+        sharedPreferences = getPreferences(Context.MODE_PRIVATE);
+        currentMonth = sharedPreferences.getInt(TAG_MONTH, -1);
 
-        String currentTimeDate = AppState.getCurrentTimeDate();
-        currentMonth = Month.monthFromTimestamp(currentTimeDate);
+        //first time we  launch the app we don't have anything stored in preferences
+        if (currentMonth == -1) {
+            String currentTimeDate = AppState.getCurrentTimeDate();
+            currentMonth = Month.monthFromTimestamp(currentTimeDate);
+            sharedPreferences.edit().putInt(TAG_MONTH, currentMonth).apply();
+        }
 
-        checkInternetConnection();
-        readDataListener = new MyListenerForSingleEvent(adapter, payments, currentMonth);
+        //checkInternetConnection();
+
         addListeners();
     }
 
@@ -121,7 +120,8 @@ public class ItemsPurchased extends AppCompatActivity {
         });
     }
 
-    public void checkInternetConnection() {
+    //used before to force the user to force the user to connect to internet
+/*    public void checkInternetConnection() {
         // Check if Internet present
         ConnectionStatus internetConnection = new ConnectionStatus(this);
         if (!internetConnection.isConnectionAvailable()) {
@@ -146,43 +146,29 @@ public class ItemsPurchased extends AppCompatActivity {
             alert.show();
         }
 
-    }
+    }*/
 
     public void clicked(View view) {
 
         switch (view.getId()) {
             case R.id.fabAdd:
-                    Intent intent = new Intent(this, NewPayment.class);
-                    //if a payment was edited previously the NewPayment activity views will be filled with those values
-                    //and we don't want this for the current flow/path
-                    AppState.get().setCurrentPayment(null);
-                    startActivity(intent);
+                Intent intent = new Intent(this, NewPayment.class);
+                //if a payment was edited previously the NewPayment activity views will be filled with those values
+                //and we don't want this for the current flow/path
+                AppState.get().setCurrentPayment(null);
+                startActivity(intent);
                 break;
 
             case R.id.bNext:
-                    currentMonth = ++currentMonth % 12;
-
-                    payments.clear();
-                    Payment test = new Payment("2017-11-16 12:31:42", "pizzaTest", 12, "food");
-
-                    payments.add(test);
-                    adapter.notifyDataSetChanged();
-
-                    //databaseReference.child("wallet").addListenerForSingleValueEvent(readDataListener);
-                    recreate();
+                currentMonth = (currentMonth + 1) % 12;
+                sharedPreferences.edit().putInt(TAG_MONTH, currentMonth).apply();
+                recreate();
                 break;
 
             case R.id.bPrevious:
-                    if (currentMonth == 0) {
-                        currentMonth = 11;
-                    } else {
-                        currentMonth--;
-                    }
-
-                    MyListenerForSingleEvent readDataListener1 = new MyListenerForSingleEvent(adapter, payments, currentMonth);
-                    databaseReference.child("wallet").addListenerForSingleValueEvent(readDataListener1);
-
-                    recreate();
+                currentMonth = (currentMonth - 1 == -1) ? 11 : currentMonth - 1;
+                sharedPreferences.edit().putInt(TAG_MONTH, currentMonth).apply();
+                recreate();
                 break;
         }
 

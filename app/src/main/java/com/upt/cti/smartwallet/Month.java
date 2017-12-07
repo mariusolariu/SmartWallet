@@ -16,7 +16,14 @@ public enum Month {
     }
 
     public static int monthFromTimestamp(String timestamp) {
-        int month = Integer.parseInt(timestamp.substring(5, 7));
+        int month;
+
+        try{
+             month = Integer.parseInt(timestamp.substring(5, 7));
+        }catch(NumberFormatException e){
+            month = 0;
+        }
+
         return month - 1;
     }
 }

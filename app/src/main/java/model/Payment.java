@@ -1,10 +1,12 @@
 package model;
 
+import java.io.Serializable;
+
 /**
  * Created by molariu on 11/2/2017.
  */
 
-public class Payment {
+public class Payment implements Serializable{
     //TODO : not really. The timestamp must be added as an value in firebase (to the "timestamp" itselft) in order to be mapped to this field
     public String timestamp; //this is returned as the key of the snapshot (a String);
     private float cost;
