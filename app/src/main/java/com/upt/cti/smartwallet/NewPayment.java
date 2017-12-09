@@ -28,11 +28,11 @@ public class NewPayment extends AppCompatActivity {
         setContentView(R.layout.new_payment_activity);
         setTitle("New Payment");
 
-        saveBtn = (Button)findViewById(R.id.saveBtn);
-        deleteBtn =(Button) findViewById(R.id.deleteBtn);
+        saveBtn = (Button) findViewById(R.id.saveBtn);
+        deleteBtn = (Button) findViewById(R.id.deleteBtn);
         paymentET = (EditText) findViewById(R.id.paymentNameV);
-        costET = (EditText)findViewById(R.id.costV);
-        typeET =(EditText) findViewById(R.id.typeV);
+        costET = (EditText) findViewById(R.id.costV);
+        typeET = (EditText) findViewById(R.id.typeV);
 
         AppState appState = AppState.get();
         databaseReference = appState.getDatabaseReference();
@@ -43,7 +43,7 @@ public class NewPayment extends AppCompatActivity {
     }
 
     private void populateFields() {
-        if (currentPayment != null){
+        if (currentPayment != null) {
             paymentET.setText(currentPayment.getName());
             costET.setText(currentPayment.getCost() + "");
             typeET.setText(currentPayment.getType());
@@ -54,25 +54,64 @@ public class NewPayment extends AppCompatActivity {
         saveBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String paymentName = paymentET.getText().toString();
-                String paymentCost = costET.getText().toString();
-                String paymentType = typeET.getText().toString();
-                String currentTimeDate = getCurrentTimeDate();
+                Map<String, Object> map = createMap();
 
-                Map<String, Object> map = new HashMap<>();
-                map.put("name", paymentName);
-                map.put("cost", Double.parseDouble(paymentCost));
-                map.put("type",paymentType);
+                Payment p = createPayment();
 
-                if (currentPayment == null){
+                //save
+                if (currentPayment == null) {
                     //create new payment mode
+                    String currentTimeDate = getCurrentTimeDate();
+                    map.put("timestamp", currentTimeDate);
+                    p.setTimestamp(currentTimeDate);
+
+                    //create child in the db; if network connectivity isn't available data will be saved
                     databaseReference.child("wallet").child(currentTimeDate).updateChildren(map);
-                }else{
-                    databaseReference.child("wallet").child(currentPayment.getTimestamp()).updateChildren(map);
+
+                    //create child locally, here's some duplicate code because
+
+                    //update
+                } else {
+                    String paymentTimestamp = currentPayment.getTimestamp();
+                    map.put("timestamp", paymentTimestamp);
+                    p.setTimestamp(paymentTimestamp);
+
+                    databaseReference.child("wallet").child(paymentTimestamp).updateChildren(map);
+
 
                 }
 
+                //create/update payment locally
+                AppState.get().updateLocalBackup(getApplicationContext(),p,true);
                 startActivity(new Intent(getApplicationContext(), ItemsPurchased.class));
+            }
+
+            private Payment createPayment() {
+                Payment p = new Payment();
+                String paymentName = paymentET.getText().toString();
+                String paymentCost = costET.getText().toString();
+                String paymentType = typeET.getText().toString();
+                float cost = Float.parseFloat(paymentCost);
+
+                p.setName(paymentName);
+                p.setCost(cost);
+                p.setType(paymentType);
+
+                return p;
+            }
+
+            private Map<String,Object> createMap() {
+                Map<String, Object> map = new HashMap<>();
+                String paymentName = paymentET.getText().toString();
+                String paymentCost = costET.getText().toString();
+                String paymentType = typeET.getText().toString();
+                Double cost = Double.parseDouble(paymentCost);
+
+                map.put("name", paymentName);
+                map.put("cost", cost);
+                map.put("type", paymentType);
+
+                return map;
             }
         });
 
@@ -84,6 +123,7 @@ public class NewPayment extends AppCompatActivity {
                 String currentPaymentTimestamp = currentPayment.getTimestamp();
 
                 databaseReference.child("wallet").child(currentPaymentTimestamp).removeValue();
+                AppState.get().updateLocalBackup(getApplicationContext(), currentPayment, false);
                 startActivity(new Intent(getApplicationContext(), ItemsPurchased.class));
             }
         });

@@ -12,6 +12,7 @@ import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
@@ -61,22 +62,52 @@ public class ItemsPurchased extends AppCompatActivity {
         }
 
         //checkInternetConnection();
+        if (!AppState.isNetworkAvailable(getApplicationContext())) {
+            // checks to see if there are any payments on local storage, if not the user is informed that for the very first time he/she
+            //  launches the app internet is needed
+            if (AppState.get().hasLocalStorage(getApplicationContext())) {
+                AppState.get().loadFromLocalBackup(getApplicationContext(), String.valueOf(currentMonth), payments);
+                adapter.notifyDataSetChanged();
+                tStatus.setText("Found " + payments.size() + " payments for " + Month.intToMonthName(currentMonth));
+            } else {
+                tStatus.setText("No payment history found on local storage! Turn internet on!");
+                Toast.makeText(this, "This app needs an internet connection!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        } else {
+            addWalletListener();
+        }
 
-        addListeners();
+        listPayments.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                Payment currentPayment = payments.get(i);
+                AppState.get().setCurrentPayment(currentPayment);
+                startActivity(new Intent(getApplicationContext(), NewPayment.class));
+            }
+        });
     }
 
-    private void addListeners() {
+    private void addWalletListener() {
         databaseReference.child("wallet").addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                //Log.i("info", "onChildAdded()");
+                //In my implementation only this method is called since when I edit/delete an item
+                //i get back to this activity by creating a new one from NewPayment activity
                 try {
+                    Payment payment = dataSnapshot.getValue(Payment.class);
+
+                    //add the new child in local storge
+                    AppState.get().updateLocalBackup(getApplicationContext(), payment, true);
+
                     if (currentMonth == Month.monthFromTimestamp(dataSnapshot.getKey())) {
-                        Payment payment = dataSnapshot.getValue(Payment.class);
-                        payment.timestamp = dataSnapshot.getKey();
+
                         payments.add(payment);
                         adapter.notifyDataSetChanged();
-                        tStatus.setText("Found " + payments.size() + " payments for " + Month.intToMonthName(currentMonth));
                     }
+                        tStatus.setText("Found " + payments.size() + " payments for " + Month.intToMonthName(currentMonth));
+
                 } catch (Exception e) {
                 }
 
@@ -84,17 +115,29 @@ public class ItemsPurchased extends AppCompatActivity {
 
             @Override
             public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-                Log.i("info", "onChildChanged()");
+                Payment payment = dataSnapshot.getValue(Payment.class);
+                int modifiedPaymentMonth = Month.monthFromTimestamp(payment.timestamp);
+
+                //update the child in local storge
+                AppState.get().updateLocalBackup(getApplicationContext(), payment, true);
+
+                if (currentMonth == modifiedPaymentMonth) {
+                    recreate();
+                }
             }
 
             @Override
             public void onChildRemoved(DataSnapshot dataSnapshot) {
-                Payment removedPayment = dataSnapshot.getValue(Payment.class);
+                Payment payment = dataSnapshot.getValue(Payment.class);
+                int modifiedPaymentMonth = Month.monthFromTimestamp(payment.timestamp);
 
-                Log.i("info", "onChildRemoved()");
-                //it doesn't work
-                payments.remove(removedPayment);
-                adapter.notifyDataSetChanged();
+                //delete local storge
+                AppState.get().updateLocalBackup(getApplicationContext(), payment, false);
+
+
+                if (currentMonth == modifiedPaymentMonth) {
+                    recreate();
+                }
 
             }
 
@@ -110,14 +153,6 @@ public class ItemsPurchased extends AppCompatActivity {
             }
         });
 
-        listPayments.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                Payment currentPayment = payments.get(i);
-                AppState.get().setCurrentPayment(currentPayment);
-                startActivity(new Intent(getApplicationContext(), NewPayment.class));
-            }
-        });
     }
 
     //used before to force the user to force the user to connect to internet

@@ -15,6 +15,11 @@ public enum Month {
         return Month.values()[index];
     }
 
+    /**
+     *
+     * @param timestamp
+     * @return -1 if the string passed doesn't represent a timestamp
+     */
     public static int monthFromTimestamp(String timestamp) {
         int month;
 

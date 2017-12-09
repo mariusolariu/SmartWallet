@@ -12,11 +12,14 @@
         android:paddingTop="@dimen/activity_vertical_margin"
         tools:context="com.upt.cti.smartwallet.ItemsPurchased">
 
-        <TextView
-            android:id="@+id/tStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:hint="Found 5 payments for this month"/>
+    <TextView
+        android:id="@+id/tStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:hint="Found 5 payments for this month" />
 
         <ListView
             android:id="@+id/listPayments"

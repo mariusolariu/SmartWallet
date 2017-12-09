@@ -2,6 +2,9 @@ package com.upt.cti.smartwallet;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.google.firebase.database.DatabaseReference;
@@ -14,7 +17,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -35,7 +37,11 @@ public class AppState {
 
     // this should be private, otherwise the Singleton Pattern is not really functional
     private AppState() {
-        databaseReference = FirebaseDatabase.getInstance().getReference();
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+
+        //all writes done offline are put in queue to keep data synchronized
+        database.setPersistenceEnabled(true);
+        databaseReference = database.getReference();
 
     }
 
@@ -71,16 +77,15 @@ public class AppState {
     }
 
     /**
-     *
      * @param context
      * @param payment
-     * @param toAdd - when false the payment is deleted
+     * @param toAdd   - when false the payment is deleted
      */
     public void updateLocalBackup(Context context, Payment payment, boolean toAdd) {
         String fileName = payment.timestamp;
         try {
             if (toAdd) {
-                FileOutputStream fos = new FileOutputStream(fileName);
+                FileOutputStream fos = context.openFileOutput(fileName, Context.MODE_PRIVATE);
                 ObjectOutputStream oos = new ObjectOutputStream(fos);
                 oos.writeObject(payment);
                 oos.close();
@@ -89,6 +94,7 @@ public class AppState {
                 context.deleteFile(fileName);
             }
         } catch (IOException e) {
+            Log.d("error", "updateLocalBackup: " + e.getMessage());
             Toast.makeText(context, "Cannot access local data.", Toast.LENGTH_SHORT).show();
         }
     }
@@ -97,21 +103,25 @@ public class AppState {
         return context.getFilesDir().listFiles().length > 0;
     }
 
-    public List<Payment> loadFromLocalBackup(Context context, String month) {
+    public void loadFromLocalBackup(Context context, String monthIndex, List<Payment> payments) {
         try {
-            List<Payment> payments = new ArrayList<>();
-            int monthIndex = Integer.parseInt(month);
+            payments.clear();
+            int month = Integer.parseInt(monthIndex);
             for (File file : context.getFilesDir().listFiles()) {
-                String timeStamp = file.getName().substring(0, 19);
+                String fileName = file.getName();
+
+                if (fileName.length() < 19) continue; //doesn't represent a file that contains a payment
+
+                String timeStamp = fileName.substring(0, 19);
 
                 //TODO : maybe there's a better check for this part
                 if (checkFileRepPayment(timeStamp)) {
-                    FileInputStream fis = context.openFileInput(file.getName());
+                    FileInputStream fis = context.openFileInput(fileName);
                     ObjectInputStream ois = new ObjectInputStream(fis);
                     Payment payment = (Payment) ois.readObject();
-                    int paymentsCurrentMonth = Month.monthFromTimestamp(payment.timestamp);
+                    int paymentMonth = Month.monthFromTimestamp(payment.timestamp);
 
-                    if (monthIndex == paymentsCurrentMonth){
+                    if (month == paymentMonth) {
                         payments.add(payment);
                     }
 
@@ -121,12 +131,12 @@ public class AppState {
             }
 
 
-            return payments;
         } catch (IOException e) {
-            Toast.makeText(context, "Cannot access local data.", Toast.LENGTH_SHORT).show();
+            Log.d("error", "loadFromLocalBackup: " + e.toString());
+            Toast.makeText(context, "Cannot access local dm data.", Toast.LENGTH_SHORT).show();
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
-        } return null;
+        }
     }
 
 
@@ -134,7 +144,13 @@ public class AppState {
     private boolean checkFileRepPayment(String timeStamp) {
         int month = Month.monthFromTimestamp(timeStamp);
 
-        return  (month >= 0) && (month <= 11);
+        return (month >= 0) && (month <= 11);
+    }
+
+    public static boolean isNetworkAvailable(Context context) {
+        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
 }
